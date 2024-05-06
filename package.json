@@ -9,26 +9,48 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": ["onLanguage:prolog"],
+  "activationEvents": [
+    "onLanguage:prolog"
+  ],
   "main": "./extension.js",
   "contributes": {
-    "commands": [{
-      "command": "praxis-ide-vscode-community.parseFile",
-      "title": "Praxis Prolog IDE: Parse and Save Current File"
-    }]
+    "commands": [
+      {
+        "command": "praxis-ide-vscode-community.parseFile",
+        "title": "Praxis Prolog IDE: Parse and Save Current File"
+      },
+      {
+        "command": "praxis-ide-vscode-community.openPreview",
+        "title": "Praxis Prolog IDE: Open Preview"
+      },
+      {
+        "command": "praxis-ide-vscode-community.startPreviewServer",
+        "title": "Praxis Prolog IDE: Start Preview Server"
+      },
+      {
+        "command": "praxis-ide-vscode-community.stopPreviewServer",
+        "title": "Praxis Prolog IDE: Stop Preview Server"
+      }
+    ]
   },
   "scripts": {
     "lint": "eslint .",
     "pretest": "npm run lint",
     "test": "vscode-test"
   },
+  "extensionDependencies": [
+    "ms-vscode.live-server"
+  ],
   "devDependencies": {
-    "@types/vscode": "^1.89.0",
     "@types/mocha": "^10.0.6",
     "@types/node": "18.x",
-    "eslint": "^8.57.0",
-    "typescript": "^5.4.5",
+    "@types/vscode": "^1.89.0",
     "@vscode/test-cli": "^0.0.8",
-    "@vscode/test-electron": "^2.3.9"
+    "@vscode/test-electron": "^2.3.9",
+    "eslint": "^8.57.0",
+    "typescript": "^5.4.5"
+  },
+  "dependencies": {
+    "praxis-ide-saviorand": "^1.0.1"
   }
 }
