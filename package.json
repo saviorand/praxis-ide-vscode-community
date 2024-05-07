@@ -2,7 +2,7 @@
   "name": "praxis-ide-vscode-community",
   "displayName": "Praxis IDE VSCode Community",
   "description": "A fork of Praxis IDE for Prolog, originally made by toblotron, turned into a VSCode extension!",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "publisher": "saviorand",
   "engines": {
     "vscode": "^1.89.0"
