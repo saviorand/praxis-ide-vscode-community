@@ -2,18 +2,20 @@ const vscode = require('vscode');
 const path = require('path');
 const { exec } = require('child_process');
 
+let isFileLocked = false;
+
 /**
  * @param {vscode.ExtensionContext} context
  */
 function activate(context) {
 
-	let disposable = vscode.commands.registerCommand('praxis-ide-vscode-community.parseFile', function () {
+	let parseFile = vscode.commands.registerCommand('praxis-ide-vscode-community.parseFile', function () {
 		readCurrentFile();
 	});
 
-	context.subscriptions.push(disposable);
+	context.subscriptions.push(parseFile);
 
-	let disposable2 = vscode.commands.registerCommand('praxis-ide-vscode-community.openPreview', function () {
+	let openPreview = vscode.commands.registerCommand('praxis-ide-vscode-community.openPreview', function () {
 		let livePreview = vscode.extensions.getExtension('ms-vscode.live-server')
 		if (livePreview) {
 			vscode.commands.executeCommand('livePreview.start.preview.atFileString', 'node_modules/praxis-ide-saviorand/index.html');
@@ -22,9 +24,9 @@ function activate(context) {
 		}
 	});
 
-	context.subscriptions.push(disposable2);
+	context.subscriptions.push(openPreview);
 
-	let disposableRun = vscode.commands.registerCommand('praxis-ide-vscode-community.startPreviewServer', function () {
+	let startPreviewServer = vscode.commands.registerCommand('praxis-ide-vscode-community.startPreviewServer', function () {
         const workspaceFolders = vscode.workspace.workspaceFolders;
         if (!workspaceFolders) {
             vscode.window.showErrorMessage('No workspace is opened.');
@@ -51,7 +53,7 @@ function activate(context) {
         vscode.window.showInformationMessage('Server started.');
     });
 
-    let disposableStop = vscode.commands.registerCommand('praxis-ide-vscode-community.stopPreviewServer', function () {
+    let stopPreviewServer = vscode.commands.registerCommand('praxis-ide-vscode-community.stopPreviewServer', function () {
         if (serverProcess) {
             serverProcess.kill();
             vscode.window.showInformationMessage('Server stopped.');
@@ -60,48 +62,206 @@ function activate(context) {
         }
     });
 
-    context.subscriptions.push(disposableRun, disposableStop);
+    context.subscriptions.push(startPreviewServer, stopPreviewServer);
 
-	// Registering a listener for text document changes
-    let changeDisposable = vscode.workspace.onDidChangeTextDocument((event) => {
+    // let watchForEditorChanges = vscode.workspace.onDidChangeTextDocument((event) => {
+    //     if (event.document === vscode.window.activeTextEditor?.document) {
+    //         readCurrentFile();
+    //     }
+    // });
+
+    // context.subscriptions.push(watchForEditorChanges);
+
+    // const workspaceFolder = vscode.workspace.workspaceFolders[0];
+    // const tmpFilePath = vscode.Uri.file(path.join(workspaceFolder.uri.fsPath, '.vscode/praxis/tmp.pl'));
+    // const watchForStorageChanges = vscode.workspace.createFileSystemWatcher(tmpFilePath.fsPath);
+    
+    // watchForStorageChanges.onDidChange(uri => updateOpenFileFromTmp(uri));
+    // context.subscriptions.push(watchForStorageChanges);
+    let watchForEditorChanges = vscode.workspace.onDidChangeTextDocument(debounce((event) => {
         if (event.document === vscode.window.activeTextEditor?.document) {
-            readCurrentFile();  // Call the function to read the file contents
+            readCurrentFile();
+        }
+    }, 300));
+
+    context.subscriptions.push(watchForEditorChanges);
+
+    const workspaceFolder = vscode.workspace.workspaceFolders[0];
+    const tmpFilePath = vscode.Uri.file(path.join(workspaceFolder.uri.fsPath, '.vscode/praxis/tmp.pl'));
+    const watchForStorageChanges = vscode.workspace.createFileSystemWatcher(tmpFilePath.fsPath);
+
+    watchForStorageChanges.onDidChange(uri => {
+        if (!isFileLocked) {
+            updateOpenFileFromAllEditors(uri);
         }
     });
 
-    context.subscriptions.push(changeDisposable);
+    context.subscriptions.push(watchForStorageChanges);
+}
+
+
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
 }
 
 function readCurrentFile() {
+    if (isFileLocked) return;
+    isFileLocked = true;
+
     const editor = vscode.window.activeTextEditor;
     if (editor) {
         const document = editor.document;
         const content = document.getText();
 
-        // Check if the file has a .pl extension
         const fileExtension = path.extname(document.fileName);
         if (fileExtension === '.pl') {
-            if (vscode.workspace.workspaceFolders) {
-                const workspaceFolder = vscode.workspace.workspaceFolders[0];
-                const filePath = vscode.Uri.file(path.join(workspaceFolder.uri.fsPath, '.vscode/praxis/tmp.pl'));
+            const workspaceFolder = vscode.workspace.workspaceFolders[0];
+            const filePath = vscode.Uri.file(path.join(workspaceFolder.uri.fsPath, '.vscode/praxis/tmp.pl'));
 
-                const writeData = Buffer.from(content, 'utf8');
+            vscode.workspace.fs.readFile(filePath).then(existingContent => {
+                if (Buffer.from(content, 'utf8').compare(existingContent) !== 0) {
+                    const writeData = Buffer.from(content, 'utf8');
 
-                vscode.workspace.fs.writeFile(filePath, writeData).then(() => {
-                    console.log('File successfully written to:', filePath.fsPath);
-                }, (error) => {
-                    console.error('Failed to write file:', error);
-                });
-            } else {
-                vscode.window.showInformationMessage('No workspace folder found!');
-            }
+                    vscode.workspace.fs.writeFile(filePath, writeData).then(() => {
+                        console.log('File successfully written to:', filePath.fsPath);
+                    }, (error) => {
+                        console.error('Failed to write file:', error);
+                    }).finally(() => {
+                        isFileLocked = false;
+                    });
+                } else {
+                    isFileLocked = false;
+                }
+            });
         } else {
             console.log('The open file does not have a .pl extension, not writing to tmp.pl');
+            isFileLocked = false;
         }
     } else {
         vscode.window.showInformationMessage('No active editor!');
+        isFileLocked = false;
     }
 }
+
+
+function updateOpenFileFromAllEditors(tmpUri) {
+    console.log('Detected change in tmp.pl');
+    if (isFileLocked) {
+        console.log('File is locked, skipping update');
+        return;
+    }
+    isFileLocked = true;
+
+    vscode.window.visibleTextEditors.forEach(editor => {
+        if (editor.document.fileName.endsWith('.pl')) {
+            vscode.workspace.fs.readFile(tmpUri).then(fileContent => {
+                const text = fileContent.toString();
+                const editorDocument = editor.document;
+
+                const edit = new vscode.WorkspaceEdit();
+                const fullRange = new vscode.Range(
+                    editorDocument.lineAt(0).range.start,
+                    editorDocument.lineAt(editorDocument.lineCount - 1).range.end
+                );
+
+                edit.replace(editorDocument.uri, fullRange, text);
+                vscode.workspace.applyEdit(edit).then(() => {
+                    console.log('Update applied to document:', editorDocument.uri.path);
+                }, err => {
+                    console.error('Failed to apply edit:', err);
+                }).finally(() => {
+                    isFileLocked = false;
+                });
+            }, err => {
+                console.error('Failed to read file:', err);
+                isFileLocked = false;
+            });
+        }
+    });
+}
+
+// function updateOpenFileFromTmp(tmpUri) {
+//     if (isFileLocked) return;
+//     isFileLocked = true;
+
+//     const editor = vscode.window.activeTextEditor;
+//     if (editor && editor.document.fileName.endsWith('.pl')) {
+//         vscode.workspace.fs.readFile(tmpUri).then(fileContent => {
+//             const text = fileContent.toString();
+//             const editorDocument = editor.document;
+
+//             const edit = new vscode.WorkspaceEdit();
+//             const fullRange = new vscode.Range(
+//                 editorDocument.lineAt(0).range.start,
+//                 editorDocument.lineAt(editorDocument.lineCount - 1).range.end
+//             );
+
+//             edit.replace(editorDocument.uri, fullRange, text);
+//             vscode.workspace.applyEdit(edit).finally(() => {
+//                 isFileLocked = false;
+//             });
+//         });
+//     }
+// }
+
+// function readCurrentFile() {
+//     const editor = vscode.window.activeTextEditor;
+//     if (editor) {
+//         const document = editor.document;
+//         const content = document.getText();
+
+//         // Check if the file has a .pl extension
+//         const fileExtension = path.extname(document.fileName);
+//         if (fileExtension === '.pl') {
+//             if (vscode.workspace.workspaceFolders) {
+//                 const workspaceFolder = vscode.workspace.workspaceFolders[0];
+//                 const filePath = vscode.Uri.file(path.join(workspaceFolder.uri.fsPath, '.vscode/praxis/tmp.pl'));
+
+//                 const writeData = Buffer.from(content, 'utf8');
+
+//                 vscode.workspace.fs.writeFile(filePath, writeData).then(() => {
+//                     console.log('File successfully written to:', filePath.fsPath);
+//                 }, (error) => {
+//                     console.error('Failed to write file:', error);
+//                 });
+//             } else {
+//                 vscode.window.showInformationMessage('No workspace folder found!');
+//             }
+//         } else {
+//             console.log('The open file does not have a .pl extension, not writing to tmp.pl');
+//         }
+//     } else {
+//         vscode.window.showInformationMessage('No active editor!');
+//     }
+// }
+
+
+// function updateOpenFileFromTmp(tmpUri) {
+//     const editor = vscode.window.activeTextEditor;
+//     if (editor && editor.document.fileName.endsWith('.pl')) {
+//         vscode.workspace.fs.readFile(tmpUri).then(fileContent => {
+//             const text = fileContent.toString();
+//             const editorDocument = editor.document;
+
+//             // Use a workspace edit to replace the content of the open document
+//             const edit = new vscode.WorkspaceEdit();
+//             const fullRange = new vscode.Range(
+//                 editorDocument.lineAt(0).range.start,
+//                 editorDocument.lineAt(editorDocument.lineCount - 1).range.end
+//             );
+//             edit.replace(editorDocument.uri, fullRange, text);
+//             vscode.workspace.applyEdit(edit);
+//         });
+//     }
+// }
 
 // This method is called when your extension is deactivated
 function deactivate() {
