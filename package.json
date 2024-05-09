@@ -57,6 +57,6 @@
     "typescript": "^5.4.5"
   },
   "dependencies": {
-    "praxis-ide-saviorand": "^1.0.1"
+    "praxis-ide-saviorand": "^1.0.6"
   }
 }

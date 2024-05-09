@@ -64,20 +64,6 @@ function activate(context) {
 
     context.subscriptions.push(startPreviewServer, stopPreviewServer);
 
-    // let watchForEditorChanges = vscode.workspace.onDidChangeTextDocument((event) => {
-    //     if (event.document === vscode.window.activeTextEditor?.document) {
-    //         readCurrentFile();
-    //     }
-    // });
-
-    // context.subscriptions.push(watchForEditorChanges);
-
-    // const workspaceFolder = vscode.workspace.workspaceFolders[0];
-    // const tmpFilePath = vscode.Uri.file(path.join(workspaceFolder.uri.fsPath, '.vscode/praxis/tmp.pl'));
-    // const watchForStorageChanges = vscode.workspace.createFileSystemWatcher(tmpFilePath.fsPath);
-    
-    // watchForStorageChanges.onDidChange(uri => updateOpenFileFromTmp(uri));
-    // context.subscriptions.push(watchForStorageChanges);
     let watchForEditorChanges = vscode.workspace.onDidChangeTextDocument(debounce((event) => {
         if (event.document === vscode.window.activeTextEditor?.document) {
             readCurrentFile();
@@ -188,82 +174,6 @@ function updateOpenFileFromAllEditors(tmpUri) {
     });
 }
 
-// function updateOpenFileFromTmp(tmpUri) {
-//     if (isFileLocked) return;
-//     isFileLocked = true;
-
-//     const editor = vscode.window.activeTextEditor;
-//     if (editor && editor.document.fileName.endsWith('.pl')) {
-//         vscode.workspace.fs.readFile(tmpUri).then(fileContent => {
-//             const text = fileContent.toString();
-//             const editorDocument = editor.document;
-
-//             const edit = new vscode.WorkspaceEdit();
-//             const fullRange = new vscode.Range(
-//                 editorDocument.lineAt(0).range.start,
-//                 editorDocument.lineAt(editorDocument.lineCount - 1).range.end
-//             );
-
-//             edit.replace(editorDocument.uri, fullRange, text);
-//             vscode.workspace.applyEdit(edit).finally(() => {
-//                 isFileLocked = false;
-//             });
-//         });
-//     }
-// }
-
-// function readCurrentFile() {
-//     const editor = vscode.window.activeTextEditor;
-//     if (editor) {
-//         const document = editor.document;
-//         const content = document.getText();
-
-//         // Check if the file has a .pl extension
-//         const fileExtension = path.extname(document.fileName);
-//         if (fileExtension === '.pl') {
-//             if (vscode.workspace.workspaceFolders) {
-//                 const workspaceFolder = vscode.workspace.workspaceFolders[0];
-//                 const filePath = vscode.Uri.file(path.join(workspaceFolder.uri.fsPath, '.vscode/praxis/tmp.pl'));
-
-//                 const writeData = Buffer.from(content, 'utf8');
-
-//                 vscode.workspace.fs.writeFile(filePath, writeData).then(() => {
-//                     console.log('File successfully written to:', filePath.fsPath);
-//                 }, (error) => {
-//                     console.error('Failed to write file:', error);
-//                 });
-//             } else {
-//                 vscode.window.showInformationMessage('No workspace folder found!');
-//             }
-//         } else {
-//             console.log('The open file does not have a .pl extension, not writing to tmp.pl');
-//         }
-//     } else {
-//         vscode.window.showInformationMessage('No active editor!');
-//     }
-// }
-
-
-// function updateOpenFileFromTmp(tmpUri) {
-//     const editor = vscode.window.activeTextEditor;
-//     if (editor && editor.document.fileName.endsWith('.pl')) {
-//         vscode.workspace.fs.readFile(tmpUri).then(fileContent => {
-//             const text = fileContent.toString();
-//             const editorDocument = editor.document;
-
-//             // Use a workspace edit to replace the content of the open document
-//             const edit = new vscode.WorkspaceEdit();
-//             const fullRange = new vscode.Range(
-//                 editorDocument.lineAt(0).range.start,
-//                 editorDocument.lineAt(editorDocument.lineCount - 1).range.end
-//             );
-//             edit.replace(editorDocument.uri, fullRange, text);
-//             vscode.workspace.applyEdit(edit);
-//         });
-//     }
-// }
-
-// This method is called when your extension is deactivated
 function deactivate() {
 	if (serverProcess) {
         serverProcess.kill();
